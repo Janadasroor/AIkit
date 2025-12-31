@@ -1,0 +1,8 @@
+/.gradle
+/.idea
+/.kotlin
+/.vscode
+/models
+/app/src/main/assets
+/app/build
+/app/src/test
