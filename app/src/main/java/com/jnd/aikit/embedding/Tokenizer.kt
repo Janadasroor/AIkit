@@ -7,7 +7,7 @@ class SimpleTokenizer(private val context: Context) {
     private lateinit var vocab: Map<String, Long>
     private val startToken = 49406L
     private val endToken = 49407L
-    private val padToken = 0L
+    private val padToken = 49407L // Standard CLIP padding is usually the EOS token
     
     fun initialize() {
         android.util.Log.d("SimpleTokenizer", "Initializing vocab...")
@@ -47,7 +47,7 @@ class SimpleTokenizer(private val context: Context) {
     private fun loadVocab(): Map<String, Long> {
         return mapOf(
             "<unk>" to 0L,
-            "a" to 320L, "of" to 254L, "in" to 241L, "the" to 244L, "on" to 261L,
+            "a" to 320L, "of" to 254L, "in" to 241L, "the" to 244L, "on" to 261L, "photo" to 1125L,
             "cat" to 2368L, "dog" to 1929L, "person" to 1290L, "man" to 905L, "woman" to 1391L,
             "flower" to 4220L, "flowers" to 4452L, "rose" to 8803L, "roses" to 10452L,
             "pink" to 2714L, "red" to 922L, "white" to 1140L, "blue" to 1445L, "green" to 1901L, "yellow" to 3532L,
