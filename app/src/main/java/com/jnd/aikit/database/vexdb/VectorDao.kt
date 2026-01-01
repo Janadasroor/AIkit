@@ -76,7 +76,7 @@ interface VectorDao {
     @Query("""
         SELECT * FROM vectors
         WHERE collectionName = :collectionName
-          AND (tagsJson LIKE '%' || :tag || '%' OR :tag IS NULL)
+          AND (tags LIKE '%' || :tag || '%' OR :tag IS NULL)
         ORDER BY createdAt DESC
         LIMIT :limit
     """)

@@ -3,17 +3,19 @@ package com.jnd.aikit.embedding
 import android.content.Context
 import android.graphics.Bitmap
 import ai.onnxruntime.*
+import android.util.Log
 import com.jnd.aikit.model.ModelManager
 import com.jnd.aikit.model.ModelType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.FloatBuffer
 import java.util.*
+import kotlin.math.sqrt
 
 class ViTEncoder(private val context: Context) {
     private var session: OrtSession? = null
     private val env = OrtEnvironment.getEnvironment()
-    private val modelManager = ModelManager(context)
+    private val modelManager = ModelManager.getInstance(context)
 
     companion object {
         private const val INPUT_SIZE = 224
@@ -70,6 +72,7 @@ class ViTEncoder(private val context: Context) {
                 else -> throw IllegalStateException("Unexpected ViT output type: ${outputValue?.javaClass?.simpleName}")
             }
             
+            normalizeEmbedding(embedding)
             inputTensor.close()
             embedding
         }
@@ -79,6 +82,7 @@ class ViTEncoder(private val context: Context) {
         val resized = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, true)
         val floatBuffer = FloatBuffer.allocate(3 * INPUT_SIZE * INPUT_SIZE)
         
+        // Standard ViT/ImageNet normalization
         val mean = floatArrayOf(0.5f, 0.5f, 0.5f)
         val std = floatArrayOf(0.5f, 0.5f, 0.5f)
         
@@ -99,6 +103,21 @@ class ViTEncoder(private val context: Context) {
         floatBuffer.rewind()
         val shape = longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())
         return OnnxTensor.createTensor(env, floatBuffer, shape)
+    }
+
+    private fun normalizeEmbedding(embedding: FloatArray): FloatArray {
+        var sumSquares = 0.0
+        for (value in embedding) {
+            sumSquares += (value * value).toDouble()
+        }
+        val norm = sqrt(sumSquares).toFloat()
+        
+        if (norm > 0f) {
+            for (i in embedding.indices) {
+                embedding[i] = embedding[i] / norm
+            }
+        }
+        return embedding
     }
     
     fun close() {

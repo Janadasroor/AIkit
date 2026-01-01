@@ -15,8 +15,8 @@ data class VectorEntity(
     @PrimaryKey
     val id: String,
 
-    // Vector data stored as JSON string for flexibility
-    val vectorData: String, // JSON array of floats
+    // Vector data
+    val vector: FloatArray,
 
     // Vector dimensions for validation
     val dimensions: Int,
@@ -28,8 +28,8 @@ data class VectorEntity(
     val imageUri: String?, // URI of the original image
     val description: String?,
 
-    // Tags stored as JSON string
-    val tagsJson: String, // JSON array of strings
+    // Tags
+    val tags: List<String>,
 
     // Timestamps
     val createdAt: Long = System.currentTimeMillis(),
@@ -37,5 +37,6 @@ data class VectorEntity(
 
     // Processing info
     val confidence: Float? = null,
-    val collectionName: String = "default"
+    val collectionName: String = "default",
+    val metadataJson: String = "{}"
 )

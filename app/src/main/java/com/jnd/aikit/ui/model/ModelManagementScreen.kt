@@ -1,5 +1,6 @@
 package com.jnd.aikit.ui.model
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,12 +12,15 @@ import androidx.compose.runtime.*
 import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jnd.aikit.model.*
+import com.jnd.aikit.ui.theme.DarkAppBarDark
+import com.jnd.aikit.ui.theme.DarkAppBarLight
 import java.text.DecimalFormat
 
 /**
@@ -63,8 +67,10 @@ fun ModelManagementScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = if (isSystemInDarkTheme()) DarkAppBarDark else DarkAppBarLight,
+                    titleContentColor = androidx.compose.ui.graphics.Color.White,
+                    navigationIconContentColor = androidx.compose.ui.graphics.Color.White,
+                    actionIconContentColor = androidx.compose.ui.graphics.Color.White
                 )
             )
         }

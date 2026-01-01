@@ -3,6 +3,8 @@
 /.kotlin
 /.vscode
 /models
-/app/src/main/assets
 /app/build
+CLIP_ACCURACY_FIX.md
+CLIP_FIX_APPLIED.md
+CLIP_SEARCH_SCORING_FIX.md
 /app/src/test

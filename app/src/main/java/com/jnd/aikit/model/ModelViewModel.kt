@@ -12,8 +12,7 @@ import java.io.File
  * ViewModel for managing model download, storage, and status
  */
 class ModelViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val modelManager = ModelManager(application)
+    private val modelManager = ModelManager.getInstance(application)
     private val modelDownloader = ModelDownloader(application)
 
     // UI state
@@ -31,6 +30,7 @@ class ModelViewModel(application: Application) : AndroidViewModel(application) {
      * Load current model states
      */
     private fun loadModelStates() {
+        modelManager.refreshModelStates()
         viewModelScope.launch {
             modelManager.modelStates.collect { states ->
                 _uiState.update { currentState ->

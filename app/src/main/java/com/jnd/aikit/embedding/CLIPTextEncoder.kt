@@ -1,6 +1,7 @@
 package com.jnd.aikit.embedding
 
 import android.content.Context
+import android.util.Log
 import ai.onnxruntime.*
 import com.jnd.aikit.model.ModelManager
 import com.jnd.aikit.model.ModelType
@@ -8,129 +9,127 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.LongBuffer
 import java.util.*
+import kotlin.math.sqrt
 
 class CLIPTextEncoder(private val context: Context) {
     private var session: OrtSession? = null
     private val env = OrtEnvironment.getEnvironment()
-    private val tokenizer = SimpleTokenizer(context)
-    private val modelManager = ModelManager(context)
-
-    companion object {
-        private const val MAX_LENGTH = 77
-    }
+    private val modelManager = ModelManager.getInstance(context)
+    private val tokenizer = Tokenizer(context)
 
     suspend fun initialize(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (session != null) return@withContext Result.success(Unit)
 
-            // Load model dynamically
             val modelResult = modelManager.loadModel(ModelType.CLIP_TEXT)
             modelResult.fold(
                 onSuccess = { modelBytes ->
                     val sessionOptions = OrtSession.SessionOptions().apply {
-                        setIntraOpNumThreads(2)
+                        val cores = Runtime.getRuntime().availableProcessors()
+                        setIntraOpNumThreads(cores.coerceIn(2, 4))
                         setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
                     }
                     session = env.createSession(modelBytes, sessionOptions)
-                    tokenizer.initialize()
-                    android.util.Log.d("CLIPTextEncoder", "Initialized with dynamic model loading")
+                    Log.d("CLIPTextEncoder", "Model loaded. Outputs: ${session?.outputNames?.joinToString(", ")}")
                     Result.success(Unit)
                 },
                 onFailure = { error ->
-                    android.util.Log.e("CLIPTextEncoder", "Failed to load model: ${error.message}")
+                    Log.e("CLIPTextEncoder", "Failed to load model: ${error.message}")
                     Result.failure(error)
                 }
             )
         } catch (e: Exception) {
-            android.util.Log.e("CLIPTextEncoder", "Failed to initialize: ${e.message}")
+            Log.e("CLIPTextEncoder", "Initialization error: ${e.message}")
             Result.failure(e)
         }
     }
-    
+
     suspend fun getEmbedding(text: String): FloatArray = withContext(Dispatchers.Default) {
-        val currentSession = session ?: throw IllegalStateException("Model not initialized")
-        val (inputIds, attentionMask) = tokenizer.encode(text, MAX_LENGTH)
+        val currentSession = session ?: throw IllegalStateException("CLIP Text Model not initialized")
         
-        val inputIdsTensor = createLongTensor(inputIds)
-        val attentionMaskTensor = createLongTensor(attentionMask)
-        
-        val inputs = mapOf(
-            "input_ids" to inputIdsTensor,
-            "attention_mask" to attentionMaskTensor
-        )
-        
-        currentSession.run(inputs).use { results ->
-            // Prioritize index 0 if it's 2D (batch, dim), then look for named nodes
-            var selectedValue: Any? = null
-            var nodeName = "index_0"
+        // 1. Get Ensemble of tokens with per-prompt lengths
+        val ensemble = tokenizer.tokenizeEnsemble(text)
+        val averagedEmbedding = FloatArray(512) { 0f }
+        val seqLen = 77
+        val shape = longArrayOf(1, seqLen.toLong())
+
+        // 2. Sequential Inference for each prompt variation
+        for ((tokens, actualLen) in ensemble) {
+            val inputIds = LongArray(seqLen) { tokens[it].toLong() }
+            val attentionMask = LongArray(seqLen) { if (it < actualLen) 1L else 0L }
             
-            val firstOutput = results.get(0)
-            val firstInfo = firstOutput.info as? TensorInfo
-            if (firstInfo != null && firstInfo.shape.size == 2) {
-                selectedValue = firstOutput.value
-            } else {
-                // Search for a 2D output among other nodes
-                for (entry in results) {
-                    val info = entry.value.info as? TensorInfo
-                    if (info != null && info.shape.size == 2) {
-                        selectedValue = entry.value.value
-                        nodeName = entry.key
-                        break
+            val inputIdsTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(inputIds), shape)
+            val attentionMaskTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(attentionMask), shape)
+            
+            val inputNames = currentSession.inputNames.toList()
+            val inputs = mutableMapOf<String, OnnxTensor>()
+            val tensorsToClose = mutableListOf<OnnxTensor>(inputIdsTensor, attentionMaskTensor)
+            
+            inputNames.forEach { name ->
+                when {
+                    name.contains("position") -> {
+                        val positions = LongArray(seqLen) { it.toLong() }
+                        val posTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(positions), shape)
+                        inputs[name] = posTensor
+                        tensorsToClose.add(posTensor)
                     }
+                    name.contains("mask") -> inputs[name] = attentionMaskTensor
+                    name.contains("ids") -> inputs[name] = inputIdsTensor
                 }
             }
             
-            if (selectedValue == null) {
-                android.util.Log.d("CLIPTextEncoder", "No 2D output found, falling back to index 0")
-                selectedValue = results.get(0).value
-            } else {
-                android.util.Log.d("CLIPTextEncoder", "Using 2D output: $nodeName")
-            }
+            if (inputs.isEmpty() && inputNames.isNotEmpty()) inputs[inputNames[0]] = inputIdsTensor
 
-            val embedding = when (selectedValue) {
-                is FloatArray -> selectedValue.clone()
-                is Array<*> -> {
-                    val firstLevel = selectedValue[0]
-                    when (firstLevel) {
-                        is FloatArray -> firstLevel.clone() // float[][] -> outputValue[0] is float[]
-                        is Array<*> -> {
-                            val secondLevel = firstLevel[0]
-                            if (secondLevel is FloatArray) secondLevel.clone() // float[][][] -> outputValue[0][0] is float[]
-                            else throw IllegalStateException("Unexpected CLIP text output type in 3D array")
+            currentSession.run(inputs).use { results ->
+                var currentEmbedding: FloatArray? = null
+                val validOutputNames = listOf("text_embeds", "output", "output_0", "pooler_output")
+                
+                for (name in validOutputNames) {
+                    if (currentSession.outputNames.contains(name)) {
+                        val value = results.get(name).get().value
+                        if (value is Array<*> && value[0] is FloatArray) {
+                            val candidate = value[0] as FloatArray
+                            if (candidate.size == 512) {
+                                currentEmbedding = candidate
+                                break
+                            }
                         }
-                        else -> throw IllegalStateException("Unexpected CLIP text output type in 2D array")
                     }
                 }
-                else -> throw IllegalStateException("Unexpected CLIP text output type: ${selectedValue?.javaClass?.simpleName}")
+                
+                currentEmbedding?.let { 
+                    for (i in 0 until 512) averagedEmbedding[i] += it[i]
+                } ?: Log.w("CLIPTextEncoder", "Skipping variation: No 512-dim output found.")
             }
+            
+            tensorsToClose.forEach { it.close() }
+        }
 
-            normalizeEmbedding(embedding)
-            
-            inputIdsTensor.close()
-            attentionMaskTensor.close()
-            
-            embedding
-        }
+        // 3. Average and final normalization
+        for (i in 0 until 512) averagedEmbedding[i] /= ensemble.size
+        val normalized = normalize(averagedEmbedding)
+        
+        val finalNorm = sqrt(normalized.map { it * it }.sum())
+        Log.d("CLIPTextEncoder", "Full Ensemble generated. Norm: $finalNorm")
+        return@withContext normalized
     }
-    
-    private fun createLongTensor(data: LongArray): OnnxTensor {
-        val buffer = LongBuffer.wrap(data)
-        val shape = longArrayOf(1, data.size.toLong())
-        return OnnxTensor.createTensor(env, buffer, shape)
-    }
-    
-    private fun normalizeEmbedding(embedding: FloatArray) {
+
+    private fun normalize(v: FloatArray): FloatArray {
         var norm = 0f
-        for (value in embedding) norm += value * value
-        norm = kotlin.math.sqrt(norm)
-        if (norm > 1e-6) {
-            for (i in embedding.indices) embedding[i] /= norm
+        for (x in v) norm += x * x
+        norm = sqrt(norm)
+        if (norm > 0) {
+            for (i in v.indices) v[i] /= norm
         }
+        return v
     }
-    
+
+    fun getTokenDetails(text: String): String {
+        return tokenizer.getTokenDetails(text)
+    }
+
     fun close() {
         session?.close()
         session = null
-        tokenizer.close()
     }
 }

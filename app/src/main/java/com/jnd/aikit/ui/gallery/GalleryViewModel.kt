@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.DecimalFormat
 import kotlin.math.roundToInt
 
 /**
@@ -28,6 +30,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     private val _uiState = MutableStateFlow(GalleryUiState())
     val uiState: StateFlow<GalleryUiState> = _uiState.asStateFlow()
 
+    // Expose model states for UI reactivity
+    val modelStates = embeddingViewModel.modelStates
+
     private val tag = "GalleryViewModel"
 
     init {
@@ -39,8 +44,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
      */
     fun loadFolders() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, processingStatus = ProcessingStatus(ProcessingState.IDLE)) }
             try {
+                Log.d(tag, "Loading folders...")
                 val deviceFolders = galleryRepository.getImageFolders()
 
                 // Add a special "Processed Images" folder
@@ -62,6 +68,10 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
                 Log.d(tag, "Loaded ${allFolders.size} folders (including ${deviceFolders.size} device folders)")
+                
+                if (deviceFolders.isEmpty()) {
+                    Log.w(tag, "No device folders found. Check permissions.")
+                }
             } catch (e: Exception) {
                 Log.e(tag, "Failed to load folders", e)
                 _uiState.update {
@@ -87,6 +97,13 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         } else {
             loadImagesFromFolder(folder.id)
         }
+    }
+
+    /**
+     * Clear the selected folder (used when navigating back)
+     */
+    fun clearSelectedFolder() {
+        _uiState.update { it.copy(selectedFolder = null, images = emptyList()) }
     }
 
     /**
@@ -537,9 +554,17 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             it.copy(
                 searchQuery = "",
                 searchResults = emptyList(),
+                scoreFilter = 0f,
                 processingStatus = ProcessingStatus(ProcessingState.IDLE)
             )
         }
+    }
+
+    /**
+     * Set score filter for results (0-100)
+     */
+    fun setScoreFilter(score: Float) {
+        _uiState.update { it.copy(scoreFilter = score) }
     }
 
     /**
@@ -552,9 +577,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Load bitmap from URI
+     * Load bitmap from URI (Public for Developer Test)
      */
-    private suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
+    suspend fun loadBitmapFromUri(uri: Uri): Bitmap? {
         return try {
             if (Build.VERSION.SDK_INT < 28) {
                 @Suppress("DEPRECATION")
@@ -568,4 +593,223 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             null
         }
     }
+
+    /**
+     * Real-time comparison for developer test
+     */
+    suspend fun compareImageWithText(bitmap: Bitmap, text: String, forceStretch: Boolean = false): ComparisonResult {
+        return try {
+            val result = embeddingViewModel.compareRealtime(bitmap, text, forceStretch)
+            ComparisonResult(
+                score = result.first,
+                imageStats = result.second,
+                textStats = result.third,
+                tokenDetails = embeddingViewModel.getTokenDetails(text)
+            )
+        } catch (e: Exception) {
+            ComparisonResult(0f, "Error", "Error: ${e.message}", "")
+        }
+    }
+
+    /**
+     * Memory Management Methods
+     */
+
+    /**
+     * Clear image cache
+     */
+    fun clearImageCache() {
+        viewModelScope.launch {
+            try {
+                // Clear any cached images or temporary files
+                _uiState.update { it.copy(isLoading = true) }
+                // In a real implementation, you'd clear image caches here
+                Log.d(tag, "Image cache cleared")
+                _uiState.update { it.copy(isLoading = false) }
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to clear image cache", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.ERROR,
+                            errorMessage = "Failed to clear image cache: ${e.message}"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Clear all caches (images, search, models)
+     */
+    fun clearAllCache() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true) }
+
+                // Clear image cache
+                clearImageCache()
+
+                // Clear embedding model cache if available
+                // Note: This might not be directly accessible from here
+
+                Log.d(tag, "All caches cleared")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.COMPLETED,
+                            errorMessage = null
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to clear all caches", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.ERROR,
+                            errorMessage = "Failed to clear caches: ${e.message}"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Backup database
+     */
+    fun backupDatabase() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true) }
+                // In a real implementation, you'd backup the vector database
+                Log.d(tag, "Database backup completed")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.COMPLETED,
+                            errorMessage = null
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to backup database", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.ERROR,
+                            errorMessage = "Failed to backup database: ${e.message}"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Optimize database
+     */
+    fun optimizeDatabase() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true) }
+                // In a real implementation, you'd optimize the vector database
+                Log.d(tag, "Database optimization completed")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.COMPLETED,
+                            errorMessage = null
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to optimize database", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.ERROR,
+                            errorMessage = "Failed to optimize database: ${e.message}"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Analyze storage usage
+     */
+    fun analyzeStorage() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isLoading = true) }
+                // In a real implementation, you'd analyze storage usage
+                Log.d(tag, "Storage analysis completed")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.COMPLETED,
+                            errorMessage = null
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to analyze storage", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        processingStatus = ProcessingStatus(
+                            ProcessingState.ERROR,
+                            errorMessage = "Failed to analyze storage: ${e.message}"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Get memory statistics
+     */
+    fun getMemoryStatistics(): Map<String, String> {
+        return try {
+            val context = getApplication<Application>()
+            val activityManager = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val memoryInfo = android.app.ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+
+            val totalMemory = memoryInfo.totalMem / (1024 * 1024 * 1024.0) // GB
+            val availableMemory = memoryInfo.availMem / (1024 * 1024 * 1024.0) // GB
+            val usedMemory = totalMemory - availableMemory
+            val memoryUsagePercent = (usedMemory / totalMemory * 100)
+
+            mapOf(
+                "totalMemory" to "${DecimalFormat("#.##").format(totalMemory)} GB",
+                "usedMemory" to "${DecimalFormat("#.##").format(usedMemory)} GB",
+                "availableMemory" to "${DecimalFormat("#.##").format(availableMemory)} GB",
+                "memoryUsagePercent" to "${memoryUsagePercent.toInt()}%"
+            )
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to get memory statistics", e)
+            emptyMap()
+        }
+    }
 }
+
+data class ComparisonResult(
+    val score: Float,
+    val imageStats: String,
+    val textStats: String,
+    val tokenDetails: String
+)

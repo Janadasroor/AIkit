@@ -88,3 +88,5 @@ data class ModelState(
     val progress: Float = 0f,
     val errorMessage: String? = null
 )
+
+

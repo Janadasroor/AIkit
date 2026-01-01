@@ -1,8 +1,10 @@
 package com.jnd.aikit.ui.gallery
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -38,6 +40,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.jnd.aikit.R
+import com.jnd.aikit.ui.theme.DarkAppBarDark
+import com.jnd.aikit.ui.theme.DarkAppBarLight
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
@@ -57,13 +61,14 @@ fun SearchScreen(
     val uiState by viewModel.uiState.collectAsState()
     var searchQuery by remember { mutableStateOf(uiState.searchQuery) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var dismissModelWarning by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    // Check model availability
-    val modelManager = remember { ModelManager(context) }
-    val clipTextAvailable = remember { modelManager.isModelAvailable(ModelType.CLIP_TEXT) }
-    val clipVisionAvailable = remember { modelManager.isModelAvailable(ModelType.CLIP_VISION) }
-    val vitAvailable = remember { modelManager.isModelAvailable(ModelType.VIT_BASE) }
+    // Check model availability reactively
+    val modelStates by viewModel.modelStates.collectAsState(initial = emptyMap())
+    val clipTextAvailable = modelStates[ModelType.CLIP_TEXT]?.status?.let { it == com.jnd.aikit.model.ModelStatus.DOWNLOADED || it == com.jnd.aikit.model.ModelStatus.READY } ?: false
+    val clipVisionAvailable = modelStates[ModelType.CLIP_VISION]?.status?.let { it == com.jnd.aikit.model.ModelStatus.DOWNLOADED || it == com.jnd.aikit.model.ModelStatus.READY } ?: false
+    val vitAvailable = modelStates[ModelType.VIT_BASE]?.status?.let { it == com.jnd.aikit.model.ModelStatus.DOWNLOADED || it == com.jnd.aikit.model.ModelStatus.READY } ?: false
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -81,24 +86,25 @@ fun SearchScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "AI Image Search",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackPressed) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            )
+//            TopAppBar(
+//                title = {
+//                    Text(
+//                        text = "AI Image Search",
+//                        style = MaterialTheme.typography.headlineSmall,
+//                        fontWeight = FontWeight.Bold
+//                    )
+//                },
+//                navigationIcon = {
+//                    IconButton(onClick = onBackPressed) {
+//                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+//                    }
+//                },
+//                colors = TopAppBarDefaults.topAppBarColors(
+//                    containerColor = if (isSystemInDarkTheme()) DarkAppBarDark else DarkAppBarLight,
+//                    titleContentColor = Color.White,
+//                    navigationIconContentColor = Color.White
+//                )
+//            )
         }
         ) { padding ->
         Column(
@@ -108,54 +114,81 @@ fun SearchScreen(
         ) {
             // Model availability warnings
             if (!clipTextAvailable || !clipVisionAvailable || !vitAvailable) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                AnimatedVisibility(
+                    visible = !dismissModelWarning,
+                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
                     ) {
-                        Text(
-                            text = "⚠️ Models Not Available",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = "⚠️ Models Not Available",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                                    IconButton(
+                                        onClick = { dismissModelWarning = true },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Clear,
+                                            contentDescription = "Dismiss warning",
+                                            tint = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
 
-                        Text(
-                            text = "The following AI models need to be downloaded and loaded for full functionality:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "The following AI models need to be downloaded and loaded for full functionality:",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
 
-                        val missingModels = mutableListOf<String>()
-                        if (!clipTextAvailable) missingModels.add("CLIP Text")
-                        if (!clipVisionAvailable) missingModels.add("CLIP Vision")
-                        if (!vitAvailable) missingModels.add("ViT Base")
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                        missingModels.forEach { model ->
-                            Text(
-                                text = "• $model",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                                val missingModels = mutableListOf<String>()
+                                if (!clipTextAvailable) missingModels.add("CLIP Text")
+                                if (!clipVisionAvailable) missingModels.add("CLIP Vision")
+                                if (!vitAvailable) missingModels.add("ViT Base")
+
+                                missingModels.forEach { model ->
+                                    Text(
+                                        text = "• $model",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Text(
+                                    text = "Go to Settings → Model Management to download models",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                                )
+                            }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = "Go to Settings → Model Management to download models",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
-                        )
                     }
                 }
             }
@@ -301,9 +334,32 @@ fun SearchScreen(
                         }
                     }
 
+                    if (uiState.searchResults.isNotEmpty()) {
+                        Divider(modifier = Modifier.padding(vertical = 12.dp))
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Score Filter: ${uiState.scoreFilter.toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.width(100.dp)
+                            )
+                            Slider(
+                                value = uiState.scoreFilter,
+                                onValueChange = { viewModel.setScoreFilter(it) },
+                                valueRange = 0f..100f,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
                     // Clear results button
                     if (uiState.searchResults.isNotEmpty() || uiState.searchQuery.isNotEmpty() || selectedImageUri != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         OutlinedButton(
                             onClick = {
                                 viewModel.clearSearch()
@@ -337,10 +393,18 @@ fun SearchScreen(
                         SearchLoadingState()
                     }
                     uiState.searchResults.isNotEmpty() -> {
-                        SearchResultsGrid(
-                            results = uiState.searchResults,
-                            onImageClick = onImageSelected
-                        )
+                        val filteredResults = uiState.searchResults.filter { 
+                            (it.score * 100) >= uiState.scoreFilter 
+                        }
+                        
+                        if (filteredResults.isEmpty()) {
+                            EmptySearchState(message = "No results match your score filter (${uiState.scoreFilter.toInt()}%+)")
+                        } else {
+                            SearchResultsGrid(
+                                results = filteredResults,
+                                onImageClick = onImageSelected
+                            )
+                        }
                     }
                     uiState.searchQuery.isNotEmpty() && uiState.processingStatus.state == ProcessingState.IDLE -> {
                         EmptySearchState()
@@ -512,7 +576,7 @@ private fun SearchWelcomeState() {
  * Empty state when search returned no results
  */
 @Composable
-private fun EmptySearchState() {
+private fun EmptySearchState(message: String? = null) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -538,7 +602,7 @@ private fun EmptySearchState() {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Try different keywords or make sure you've processed some images first.",
+            text = message ?: "Try different keywords or make sure you've processed some images first.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center

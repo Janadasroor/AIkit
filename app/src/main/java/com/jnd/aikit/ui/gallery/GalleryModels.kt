@@ -71,5 +71,6 @@ data class GalleryUiState(
     val processingStatus: ProcessingStatus = ProcessingStatus(ProcessingState.IDLE),
     val isLoading: Boolean = false,
     val searchQuery: String = "",
+    val scoreFilter: Float = 25f, // 0 to 100
     val selectedImages: Set<String> = emptySet()
 )

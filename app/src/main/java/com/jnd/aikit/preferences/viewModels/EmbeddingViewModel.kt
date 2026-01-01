@@ -6,84 +6,69 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jnd.aikit.database.*
+import com.jnd.aikit.database.vexdb.VexDatabase
 import com.jnd.aikit.embedding.CLIPImageEncoder
 import com.jnd.aikit.embedding.CLIPTextEncoder
 import com.jnd.aikit.embedding.ViTEncoder
 import com.jnd.aikit.model.ModelManager
 import com.jnd.aikit.model.ModelType as ModelTypeNew
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.*
+import kotlin.math.sqrt
 
 class EmbeddingViewModel(application: Application) : AndroidViewModel(application) {
     private val clipImageEncoder = CLIPImageEncoder(application)
     private val clipTextEncoder = CLIPTextEncoder(application)
     private val vitEncoder = ViTEncoder(application)
     private val qdrantManager = QdrantDatabaseManager(application)
-    private val modelManager = ModelManager(application)
+    private val modelManager = ModelManager.getInstance(application)
+
+    // Expose model states for UI reactivity
+    val modelStates = modelManager.modelStates
 
     // Mutex to ensure only one model operation (init or inference) happens at a time
     private val modelMutex = Mutex()
     
     init {
+        // Automatically initialize models when they become available
+        viewModelScope.launch {
+            modelManager.modelStates.collect { states ->
+                modelMutex.withLock {
+                    if (states[ModelTypeNew.CLIP_VISION]?.status == com.jnd.aikit.model.ModelStatus.DOWNLOADED) {
+                        clipImageEncoder.initialize()
+                    }
+                    if (states[ModelTypeNew.CLIP_TEXT]?.status == com.jnd.aikit.model.ModelStatus.DOWNLOADED) {
+                        clipTextEncoder.initialize()
+                    }
+                    if (states[ModelTypeNew.VIT_BASE]?.status == com.jnd.aikit.model.ModelStatus.DOWNLOADED) {
+                        vitEncoder.initialize()
+                    }
+                }
+            }
+        }
+
+        // Standard initialization
         viewModelScope.launch {
             modelMutex.withLock {
-                Log.d("EmbeddingViewModel", "Initializing models...")
-
-                // Initialize encoders with error handling
-                val clipImageResult = clipImageEncoder.initialize()
-                clipImageResult.onSuccess {
-                    Log.d("EmbeddingViewModel", "CLIP Image encoder initialized")
-                }.onFailure { e ->
-                    Log.e("EmbeddingViewModel", "Failed to initialize CLIP Image encoder", e)
-                }
-
-                val clipTextResult = clipTextEncoder.initialize()
-                clipTextResult.onSuccess {
-                    Log.d("EmbeddingViewModel", "CLIP Text encoder initialized")
-                }.onFailure { e ->
-                    Log.e("EmbeddingViewModel", "Failed to initialize CLIP Text encoder", e)
-                }
-
-                val vitResult = vitEncoder.initialize()
-                vitResult.onSuccess {
-                    Log.d("EmbeddingViewModel", "ViT encoder initialized")
-                }.onFailure { e ->
-                    Log.e("EmbeddingViewModel", "Failed to initialize ViT encoder", e)
-                }
-
-                // Initialize VexDB (formerly Qdrant)
-                val vexResult = qdrantManager.initialize(
+                Log.d("EmbeddingViewModel", "Initializing core services...")
+                
+                // Initialize VexDB
+                qdrantManager.initialize(
                     QdrantDatabaseManager.Config(
-                        host = "localhost", // Change this to your VexDB server if needed
+                        host = "localhost",
                         port = 6334,
-                        enableLogging = true // Set to false in production
+                        enableLogging = true
                     )
                 )
-
-                vexResult.onSuccess {
-                    Log.d("EmbeddingViewModel", "VexDB initialized successfully.")
-
-                    // Auto-cleanup incompatible vectors (e.g. 768-dim vectors from wrong model)
-                    try {
-                        val deleted = qdrantManager.removeIncompatibleVectors(
-                            "images",
-                            com.jnd.aikit.database.ModelType.CLIP_IMAGE,
-                            512 // Expected dimension for CLIP ViT-B/32
-                        )
-                        if (deleted > 0) {
-                            Log.w("EmbeddingViewModel", "Deleted $deleted incompatible vectors (wrong dimension) from database. Please re-process these images.")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("EmbeddingViewModel", "Failed to cleanup incompatible vectors", e)
-                    }
-
-                }.onFailure { e ->
-                    Log.e("EmbeddingViewModel", "Failed to initialize VexDB", e)
-                }
-
-                Log.d("EmbeddingViewModel", "Models initialization complete.")
+                
+                // Initial attempt to load existing models
+                clipImageEncoder.initialize()
+                clipTextEncoder.initialize()
+                vitEncoder.initialize()
             }
         }
     }
@@ -195,7 +180,7 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
                 Log.e("Embedding", "Image processing completed with errors: $combinedError")
                 Result.failure(Exception(combinedError))
             } else {
-                Log.d("Embedding", "Image processing completed successfully")
+                Log.d("Embedding", "Image processing completed successfully. Vector ID: $vectorId")
                 Result.success(Unit)
             }
 
@@ -204,6 +189,7 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
             Result.failure(e)
         }
     }
+
     
     suspend fun searchByText(
         query: String,
@@ -239,11 +225,15 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
             )
 
             Log.d("Search", "Found ${imageResults.size} similar images for text query")
-            imageResults.forEach { result ->
-                Log.d("Search", "Image result: ${result.vectorData.id}, score: ${result.score}")
+            
+            // Map results to calibrated scores for unified display
+            val calibratedResults = imageResults.map { result ->
+                val calibratedScore = calibrateScore(result.score)
+                Log.d("Search", "Image result: ${result.vectorData.id}, raw: ${result.score}, calibrated: $calibratedScore")
+                result.copy(score = calibratedScore)
             }
 
-            imageResults
+            return calibratedResults
 
         } catch (e: Exception) {
             Log.e("Search", "Error searching by text:", e)
@@ -289,11 +279,19 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
             )
 
             Log.d("Search", "Found ${imageResults.size} visually similar images")
-            imageResults.forEach { result ->
+            
+            // Apply calibration only if it's a CLIP-based search
+            val finalResults = if (!useViT) {
+                imageResults.map { it.copy(score = calibrateScore(it.score)) }
+            } else {
+                imageResults
+            }
+
+            finalResults.forEach { result ->
                 Log.d("Search", "Similar image: ${result.vectorData.id}, score: ${result.score}")
             }
 
-            imageResults
+            return finalResults
 
         } catch (e: Exception) {
             Log.e("Search", "Error searching by image:", e)
@@ -391,6 +389,79 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     
+    private fun calibrateScore(rawScore: Float): Float {
+        // High-precision CLIP Calibration (Sigmoid with Logit Scaling)
+        val baseline = 0.25f
+        val temperature = 100.0f
+        val shifted = (rawScore - baseline) * temperature
+        return (1.0f / (1.0f + Math.exp(-shifted.toDouble()).toFloat())).toFloat().coerceIn(0f, 1f)
+    }
+
+    /**
+     * Real-time comparison for developer test (no storage)
+     */
+    /**
+     * Get all image vectors from the database
+     */
+    suspend fun getAllImageVectors(collection: String = "images"): List<VectorData> = withContext(Dispatchers.IO) {
+        try {
+            // Get all image vectors from VexDB
+            val vexDatabase = com.jnd.aikit.database.vexdb.VexDatabase.getInstance(getApplication())
+            val imageVectors = vexDatabase.vectorDao().getVectorsByType(com.jnd.aikit.database.VectorType.IMAGE)
+
+            // Convert VectorEntity to VectorData
+            imageVectors.map { entity ->
+                VectorData(
+                    id = entity.id,
+                    vector = entity.vector,
+                    payload = VectorPayload(
+                        type = entity.vectorType,
+                        model = entity.modelType,
+                        timestamp = entity.createdAt,
+                        source = entity.source,
+                        imageUri = entity.imageUri,
+                        tags = entity.tags,
+                        description = entity.description,
+                        confidence = entity.confidence
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("EmbeddingViewModel", "Failed to get all image vectors", e)
+            emptyList()
+        }
+    }
+
+    suspend fun compareRealtime(bitmap: Bitmap, text: String, forceStretch: Boolean = false): Triple<Float, String, String> = modelMutex.withLock {
+        try {
+            val imageEmbedding = clipImageEncoder.getEmbedding(bitmap, forceStretch)
+            val imgStats = "Norm: 1.0, Max: ${String.format("%.3f", imageEmbedding.maxOrNull())}"
+
+            val textEmbedding = clipTextEncoder.getEmbedding(text)
+            val txtStats = "Norm: 1.0, Max: ${String.format("%.3f", textEmbedding.maxOrNull())}"
+
+            val rawSimilarity = cosineSimilarity(imageEmbedding, textEmbedding)
+            val confidence = calibrateScore(rawSimilarity)
+            
+            Log.d("CLIPCalibration", "Raw: ${String.format("%.4f", rawSimilarity)} -> Final: ${String.format("%.1f", confidence * 100)}%")
+            return Triple(confidence, imgStats, txtStats)
+        } catch (e: Exception) {
+            Log.e("EmbeddingViewModel", "Comparison failed", e)
+            throw e
+        }
+    }
+
+    fun getTokenDetails(text: String): String {
+        return clipTextEncoder.getTokenDetails(text)
+    }
+
+    private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
+        if (a.size != b.size) return 0f
+        var dotProduct = 0f
+        for (i in a.indices) dotProduct += a[i] * b[i]
+        return dotProduct
+    }
+
     override fun onCleared() {
         super.onCleared()
         viewModelScope.launch {

@@ -25,48 +25,112 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jnd.aikit.ui.gallery.GalleryApp
 import com.jnd.aikit.ui.theme.AIKitTheme
 
+// Theme state data class
+data class ThemeState(
+    val isDarkMode: Boolean,
+    val onThemeChanged: (Boolean) -> Unit
+)
+
+// Composition local for theme state
+val LocalThemeState = androidx.compose.runtime.staticCompositionLocalOf<ThemeState> {
+    error("ThemeState not provided")
+}
+
 class MainActivity : ComponentActivity() {
 
     private var hasRequestedPermission = false
+
+    @Composable
+    private fun AppThemeWrapper() {
+        val context = LocalContext.current
+        var isDarkMode by remember { mutableStateOf(false) }
+        var themeLoaded by remember { mutableStateOf(false) }
+
+        // Load theme preference on launch
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            isDarkMode = prefs.getBoolean("dark_mode", false)
+            themeLoaded = true
+        }
+
+        AIKitTheme(darkTheme = isDarkMode) {
+            // Provide theme state to the entire app
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalThemeState provides ThemeState(
+                    isDarkMode = isDarkMode,
+                    onThemeChanged = { newDarkMode ->
+                        isDarkMode = newDarkMode
+                        val prefs = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putBoolean("dark_mode", newDarkMode).apply()
+                    }
+                )
+            ) {
+                GalleryAppWithPermissions()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AIKitTheme {
-                GalleryAppWithPermissions()
-            }
+            AppThemeWrapper()
         }
     }
 
     @Composable
     private fun GalleryAppWithPermissions() {
         val context = LocalContext.current
-        var hasPermission by remember { mutableStateOf(checkStoragePermission()) }
+        var hasStoragePermission by remember { mutableStateOf(checkStoragePermission()) }
+        var hasManageExternalPermission by remember { mutableStateOf(checkManageExternalStoragePermission()) }
 
         val permissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
         ) { isGranted: Boolean ->
-            hasPermission = isGranted
+            hasStoragePermission = isGranted
             if (!isGranted) {
                 Toast.makeText(context, "Storage permission is required to access images", Toast.LENGTH_LONG).show()
             }
         }
 
-        // Request permission on first launch
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            if (!hasPermission && !hasRequestedPermission) {
-                hasRequestedPermission = true
-                permissionLauncher.launch(getStoragePermission())
+        // Launcher for MANAGE_EXTERNAL_STORAGE permission (Android 11+)
+        val manageExternalLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            hasManageExternalPermission = checkManageExternalStoragePermission()
+            if (!hasManageExternalPermission) {
+                Toast.makeText(context, "All files access is recommended for complete folder listing", Toast.LENGTH_LONG).show()
             }
         }
 
-        if (hasPermission) {
+        // Request permissions on first launch
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            if (!hasStoragePermission && !hasRequestedPermission) {
+                hasRequestedPermission = true
+                permissionLauncher.launch(getStoragePermission())
+            }
+
+            // Request MANAGE_EXTERNAL_STORAGE permission if needed (Android 11+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !hasManageExternalPermission) {
+                try {
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    manageExternalLauncher.launch(intent)
+                } catch (e: Exception) {
+                    // Fallback if the intent fails
+                    Toast.makeText(context, "Please grant 'All files access' permission manually in settings", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        if (hasStoragePermission) {
             // Check for missing models and show toast
             androidx.compose.runtime.LaunchedEffect(Unit) {
                 checkMissingModelsAndNotify(context)
@@ -96,8 +160,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun checkManageExternalStoragePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // For Android 11+, check if we have MANAGE_EXTERNAL_STORAGE permission
+            android.os.Environment.isExternalStorageManager()
+        } else {
+            true // Not needed for older versions
+        }
+    }
+
     private fun checkMissingModelsAndNotify(context: android.content.Context) {
-        val modelManager = com.jnd.aikit.model.ModelManager(context)
+        val modelManager = com.jnd.aikit.model.ModelManager.getInstance(context)
         val missingModels = com.jnd.aikit.model.ModelConfig.ALL_MODELS.filter { config ->
             !modelManager.isModelAvailable(config.type)
         }

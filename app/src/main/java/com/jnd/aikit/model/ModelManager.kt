@@ -14,30 +14,39 @@ import java.security.MessageDigest
 /**
  * ModelManager handles dynamic ONNX model loading, storage, and management
  */
-class ModelManager(private val context: Context) {
+class ModelManager private constructor(context: Context) {
+    private val appContext = context.applicationContext
+
+    companion object {
+        @Volatile
+        private var INSTANCE: ModelManager? = null
+
+        fun getInstance(context: Context): ModelManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: ModelManager(context).also { INSTANCE = it }
+            }
+        }
+    }
 
     private val tag = "ModelManager"
 
     // Model storage directory
-    private val modelsDir = File(context.filesDir, "models").apply {
+    private val modelsDir = File(appContext.filesDir, "models").apply {
         if (!exists()) mkdirs()
     }
 
     // Model states
     private val _modelStates = MutableStateFlow<Map<ModelType, ModelState>>(emptyMap())
-    val modelStates: Flow<Map<ModelType, ModelState>> = _modelStates.asStateFlow()
-
-    // Model cache - Removing large ByteArrays to avoid OOM
-    // private val modelCache = mutableMapOf<ModelType, ByteArray>()
+    val modelStates: MutableStateFlow<Map<ModelType, ModelState>> = _modelStates
 
     init {
-        initializeModelStates()
+        refreshModelStates()
     }
 
     /**
-     * Initialize model states by checking local storage
+     * Refresh model states by checking local storage
      */
-    private fun initializeModelStates() {
+    fun refreshModelStates() {
         val states = mutableMapOf<ModelType, ModelState>()
 
         ModelConfig.ALL_MODELS.forEach { config ->
@@ -204,3 +213,5 @@ class ModelManager(private val context: Context) {
         Log.d(tag, "ModelManager closed")
     }
 }
+
+
