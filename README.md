@@ -284,11 +284,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **ONNX** for the model format and runtime
 - **Android Jetpack** for the development framework
 
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/JanadaSroor/AI-Kit-Gallery/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/JanadaSroor/AI-Kit-Gallery/discussions)
-- **Email**: janadasroor@example.com
 
 ## 🔄 Updates
 
@@ -302,4 +297,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by [JanadaSroor](https://github.com/JanadaSroor)**
 
-*Transform your Android gallery into an AI-powered search experience!* 🚀
+*Transform your Android gallery into an AI-powered search experience!*
