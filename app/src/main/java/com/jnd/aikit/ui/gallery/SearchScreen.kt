@@ -432,6 +432,7 @@ fun SearchScreen(
 /**
  * Search suggestions for common queries
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SearchSuggestions(onSuggestionClick: (String) -> Unit) {
     Card(

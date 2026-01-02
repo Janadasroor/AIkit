@@ -2,6 +2,7 @@ package com.jnd.aikit.ui.gallery
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -88,19 +89,20 @@ fun ImageGalleryScreen(
                 TopAppBar(
                     title = {
                         Column {
-//                            Text(
-//                                text = folder.name,
-//                                style = MaterialTheme.typography.headlineSmall,
-//                                fontWeight = FontWeight.SemiBold
-//                            )
+                            Text(
+                                text = folder.name,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
                             AnimatedVisibility(
                                 visible = screenVisible,
                                 enter = fadeIn(animationSpec = tween(800, delayMillis = 200))
                             ) {
                                 Text(
-                                    text = "${folder.imageCount} images",
+                                    text = "${uiState.images.size} images",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.White.copy(alpha = 0.7f)
                                 )
                             }
                         }
@@ -126,7 +128,7 @@ fun ImageGalleryScreen(
 
                         // Process folder button (only show if not all images are processed)
                         AnimatedVisibility(
-                            visible = screenVisible && !allImagesProcessed,
+                            visible = screenVisible && !allImagesProcessed && uiState.images.isNotEmpty(),
                             enter = slideInHorizontally(
                                 initialOffsetX = { it },
                                 animationSpec = tween(400, delayMillis = 200, easing = EaseOutCubic)
@@ -199,7 +201,9 @@ fun ImageGalleryScreen(
                     OutlinedButton(
                         onClick = {
                             viewModel.uiState.value.images.forEach { image ->
-                                viewModel.toggleImageSelection(image.id)
+                                if (image.id !in uiState.selectedImages) {
+                                    viewModel.toggleImageSelection(image.id)
+                                }
                             }
                         },
                         colors = ButtonDefaults.outlinedButtonColors(
@@ -347,6 +351,7 @@ fun ImageGalleryScreen(
 /**
  * Individual image item in the gallery grid with modern design
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GalleryImageItem(
     image: GalleryImage,
