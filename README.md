@@ -67,7 +67,9 @@ An advanced **AI-powered image gallery** for Android featuring **offline CLIP an
    ./gradlew installDebug
    ```
 
-## 📱 Usage Guide
+   Or you can install the app after downloading models without building the project , from [AIkit/releases/tag/v1.0.0](https://github.com/Janadasroor/AIkit/releases/tag/v1.0.0)
+
+##  Usage Guide
 
 ### Basic Navigation
 1. **Launch the app** and grant storage permissions
@@ -94,7 +96,7 @@ An advanced **AI-powered image gallery** for Android featuring **offline CLIP an
 4. **View processed images** in the "Processed Images" folder
 
 
-## 🧠 AI Models
+##  AI Models
 
 The app uses optimized ONNX models for offline AI processing:
 
@@ -121,12 +123,12 @@ The app uses optimized ONNX models for offline AI processing:
 All models are available on Hugging Face:
 
 ### CLIP ViT-Base-Patch32
-- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models)
+- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models/models)
 - **Base Model**: `openai/clip-vit-base-patch32`
 - **Optimization**: INT8 quantization for mobile deployment
 
 ### ViT Base Patch16-224
-- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models)
+- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models/models)
 - **Base Model**: `google/vit-base-patch16-224`
 - **Optimization**: INT8 quantization for mobile performance
 
@@ -213,7 +215,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **OpenAI** for the CLIP model architecture
 - **Google** for the Vision Transformer models
