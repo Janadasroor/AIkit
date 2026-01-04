@@ -123,12 +123,12 @@ The app uses optimized ONNX models for offline AI processing:
 All models are available on Hugging Face:
 
 ### CLIP ViT-Base-Patch32
-- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models/models)
+- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models/tree/main/models)
 - **Base Model**: `openai/clip-vit-base-patch32`
 - **Optimization**: INT8 quantization for mobile deployment
 
 ### ViT Base Patch16-224
-- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models/models)
+- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models/tree/main/models)
 - **Base Model**: `google/vit-base-patch16-224`
 - **Optimization**: INT8 quantization for mobile performance
 
