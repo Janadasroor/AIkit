@@ -1,52 +1,38 @@
 # AI Kit Gallery 📸🤖
 
-An advanced **AI-powered image gallery** for Android featuring **offline CLIP and ViT models** for intelligent image search and classification. Built with Jetpack Compose and ONNX Runtime for high-performance, privacy-focused AI capabilities.
+An advanced **AI-powered image gallery** for Android featuring **offline CLIP and ViT models** for intelligent image search. Built with Jetpack Compose and ONNX Runtime for high-performance, privacy-focused AI capabilities.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9.21-purple.svg)](https://kotlinlang.org)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.16.0-orange.svg)](https://onnxruntime.ai)
 
-## ✨ Features
+##  Features
 
-### 🎨 **Smart Image Gallery**
-- **Beautiful Material Design 3** interface with smooth animations
-- **Organized folder view** showing all your device image albums
-- **Grid layout** with responsive design for all screen sizes
-- **Image thumbnails** with fast loading and caching
-
-### 🔍 **AI-Powered Search**
+###  **AI-Powered Search**
 - **Text-to-Image Search**: Find images using natural language descriptions
 - **Image-to-Image Search**: Find similar images by selecting a reference image
 - **CLIP Model Integration**: Uses OpenAI's CLIP for semantic understanding
 - **ViT Model Support**: Google's Vision Transformer for visual similarity
 - **Real-time search** with instant results
 
-### 🧠 **Offline AI Processing**
+###  **Offline AI Processing**
 - **100% Offline**: No internet required for AI features
 - **Privacy-First**: All processing happens on-device
 - **Quantized Models**: Optimized for mobile performance
 - **Multi-Model Support**: Choose between CLIP and ViT models
 
-### 📁 **Virtual Collections**
+###  **Virtual Collections**
 - **Processed Images Folder**: Smart collection of AI-indexed images
 - **Batch Processing**: Process entire folders or selected images
 - **Progress Tracking**: Real-time processing status and statistics
 - **Automatic Organization**: Images organized by processing status
 
-### 🎛️ **Advanced Controls**
-- **Memory Management**: Monitor and optimize app memory usage
-- **Cache Management**: Clear search and image caches
-- **Database Optimization**: Maintain vector database performance
-- **Model Management**: Download and manage AI models
-
-### 🎨 **Customization**
+###  **Customization**
 - **Theme Support**: Light/Dark mode with system integration
 - **Beautiful Drawer Navigation**: Smooth animated navigation drawer
-- **Responsive Design**: Optimized for phones and tablets
-- **Customizable Settings**: Personalize your experience
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### Prerequisites
 - **Android Studio**: Arctic Fox or later
@@ -58,22 +44,22 @@ An advanced **AI-powered image gallery** for Android featuring **offline CLIP an
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/JanadaSroor/AI-Kit-Gallery.git
-   cd AI-Kit-Gallery
+   git clone https://github.com/JanadaSroor/AIKit.git
+   cd AIKit
    ```
 
 2. **Download AI Models**
    Download the ONNX models from [Hugging Face](https://huggingface.co/JanadaSroor):
    ```bash
    # Download CLIP models
-   wget https://huggingface.co/JanadaSroor/clip-vit-base-patch32-onnx/resolve/main/clip_text_quantized.onnx
-   wget https://huggingface.co/JanadaSroor/clip-vit-base-patch32-onnx/resolve/main/clip_vision_quantized.onnx
+   wget [https://huggingface.co/JanadaSroor/clip-vit-base-patch32-onnx/resolve/main/clip_text_quantized.onnx](https://huggingface.co/JanadaSroor/vision-models/resolve/main/models/clip_text_quantized.onnx)
+   wget [https://huggingface.co/JanadaSroor/clip-vit-base-patch32-onnx/resolve/main/clip_vision_quantized.onnx](https://huggingface.co/JanadaSroor/vision-models/resolve/main/models/clip_vision_quantized.onnx)
 
    # Download ViT model
-   wget https://huggingface.co/JanadaSroor/vit-base-patch16-224-onnx/resolve/main/vit_base_quantized.onnx
+   wget [https://huggingface.co/JanadaSroor/vit-base-patch16-224-onnx/resolve/main/vit_base_quantized.onnx](https://huggingface.co/JanadaSroor/vision-models/resolve/main/models/vit_base_quantized.onnx)
    ```
 
-   Place the downloaded models in `app/src/main/assets/` directory.
+   Open the app and go to models screen and upload the 3 models 
 
 3. **Build and Run**
    ```bash
@@ -107,11 +93,6 @@ An advanced **AI-powered image gallery** for Android featuring **offline CLIP an
 3. **Monitor progress** with real-time updates
 4. **View processed images** in the "Processed Images" folder
 
-### Memory Management
-1. Open **Memory Management** from the drawer
-2. **Monitor system memory** usage with beautiful charts
-3. **Clear caches** and optimize database
-4. **View storage statistics** and processed image counts
 
 ## 🧠 AI Models
 
@@ -140,60 +121,21 @@ The app uses optimized ONNX models for offline AI processing:
 All models are available on Hugging Face:
 
 ### CLIP ViT-Base-Patch32
-- **Repository**: [`JanadaSroor/clip-vit-base-patch32-onnx`](https://huggingface.co/JanadaSroor/clip-vit-base-patch32-onnx)
+- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models)
 - **Base Model**: `openai/clip-vit-base-patch32`
 - **Optimization**: INT8 quantization for mobile deployment
 
 ### ViT Base Patch16-224
-- **Repository**: [`JanadaSroor/vit-base-patch16-224-onnx`](https://huggingface.co/JanadaSroor/vit-base-patch16-224-onnx)
+- **Repository**: [`JanadaSroor/vision-models`](https://huggingface.co/JanadaSroor/vision-models)
 - **Base Model**: `google/vit-base-patch16-224`
 - **Optimization**: INT8 quantization for mobile performance
 
-## 📚 Colab Example
+##  Colab Example
 
 Try the AI models with this Google Colab notebook:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/JanadaSroor/AI-Kit-Gallery/blob/main/colab/AI_Models_Demo.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/#fileId=https%3A//huggingface.co/JanadaSroor/vision-models/blob/main/AI_Models_Demo.ipynb)
 
-### Colab Features
-- **Model Download**: Automated download from Hugging Face
-- **Inference Examples**: Text-to-image and image-to-image search
-- **Performance Benchmarking**: Compare model speeds and accuracy
-- **Visualization**: See embeddings and similarity scores
-
-```python
-# Quick start in Colab
-from transformers import CLIPProcessor, CLIPModel
-import torch
-
-# Load models
-model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-
-# Example inference
-inputs = processor(text=["a photo of a cat"], images=[image], return_tensors="pt")
-outputs = model(**inputs)
-```
-
-## 🏗️ Architecture
-
-### App Structure
-```
-app/src/main/java/com/jnd/aikit/
-├── ui/
-│   ├── gallery/          # Gallery screens and navigation
-│   │   ├── FolderSelectionScreen.kt
-│   │   ├── ImageGalleryScreen.kt
-│   │   ├── SearchScreen.kt
-│   │   ├── MemoryManagementScreen.kt
-│   │   ├── SettingsScreen.kt
-│   │   └── DrawerNavigation.kt
-│   └── model/            # Model management UI
-├── database/             # Vector database (VexDB)
-├── model/                # AI model management
-├── embedding/            # CLIP and ViT encoders
-└── MainActivity.kt
-```
 
 ### Key Components
 - **GalleryViewModel**: Manages gallery state and operations
@@ -228,19 +170,13 @@ dependencies {
 }
 ```
 
-### Performance Optimizations
-- **Model Quantization**: INT8 quantization reduces model size by 75%
-- **Lazy Loading**: Images and search results loaded on-demand
-- **Memory Pooling**: Reusable memory buffers for inference
-- **Background Processing**: AI operations run on separate threads
-
 ### Storage Usage
 - **Models**: ~483MB total (62MB CLIP Text + 337MB CLIP Vision + 84MB ViT)
 - **Database**: ~50-200MB depending on processed images
 - **Cache**: ~20-100MB temporary image thumbnails
 - **Total**: ~250-500MB with full functionality
 
-## 📊 Privacy & Security
+##  Privacy & Security
 
 ### Privacy-First Design
 - **Zero Data Transmission**: All processing happens offline
@@ -273,7 +209,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - **Database Improvements**: Better vector indexing
 - **Cross-Platform**: iOS version development
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
@@ -285,7 +221,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Android Jetpack** for the development framework
 
 
-## 🔄 Updates
+##  Updates
 
 ### Version 1.0.0
 - Initial release with CLIP and ViT support
