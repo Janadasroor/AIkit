@@ -1,4 +1,4 @@
-# AI Kit Gallery 📸🤖
+# AI Kit Gallery
 
 An advanced **AI-powered image gallery** for Android featuring **offline CLIP and ViT models** for intelligent image search. Built with Jetpack Compose and ONNX Runtime for high-performance, privacy-focused AI capabilities.
 
@@ -83,8 +83,8 @@ An advanced **AI-powered image gallery** for Android featuring **offline CLIP an
 3. View results ranked by semantic similarity
 
 #### Image Search
-1. **Long-press any image** in the gallery
-2. Select **"Search Similar"** from the menu
+1. **Select any image** in the gallery
+2. Select **"Search By image"** from the menu
 3. View visually similar images
 
 ### Processing Images
@@ -149,7 +149,7 @@ Try the AI models with this Google Colab notebook:
 3. **Search Query** → Similarity Search → Ranked Results
 4. **Memory Management** → Cache/Database Optimization
 
-## 🔧 Technical Details
+##  Technical Details
 
 ### Dependencies
 ```kotlin
