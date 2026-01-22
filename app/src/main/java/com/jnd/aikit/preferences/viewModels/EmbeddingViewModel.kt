@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jnd.aikit.database.*
+import com.jnd.aikit.database.ModelType
 import com.jnd.aikit.database.vexdb.VexDatabase
 import com.jnd.aikit.embedding.CLIPImageEncoder
 import com.jnd.aikit.embedding.CLIPTextEncoder
@@ -64,6 +65,17 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
                         enableLogging = true
                     )
                 )
+
+                // Automatic cleanup of incompatible vectors (Fix for 768d vectors in CLIP model)
+                val deletedCount = qdrantManager.removeIncompatibleVectors(
+                    collection = "images",
+                    modelType = ModelType.CLIP_IMAGE,
+                    expectedDims = 512
+                )
+
+                if (deletedCount > 0) {
+                    Log.w("EmbeddingViewModel", "Deleted $deletedCount incompatible vectors (wrong dimension) from database")
+                }
                 
                 // Initial attempt to load existing models
                 clipImageEncoder.initialize()
@@ -117,7 +129,7 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
                         vector = clipEmbedding,
                         payload = VectorPayload(
                             type = VectorType.IMAGE,
-                            model = com.jnd.aikit.database.ModelType.CLIP_IMAGE,
+                            model = ModelType.CLIP_IMAGE,
                             source = "camera/gallery",
                             imageUri = imageUri?.toString(),
                             tags = tags,
@@ -152,7 +164,7 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
                         vector = vitEmbedding,
                         payload = VectorPayload(
                             type = VectorType.IMAGE,
-                            model = com.jnd.aikit.database.ModelType.VIT,
+                            model = ModelType.VIT,
                             source = "camera/gallery",
                             imageUri = imageUri?.toString(),
                             tags = tags,
@@ -220,7 +232,7 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
                     limit = limit,
                     scoreThreshold = minScore ?: 0.01f, // Lower threshold for CLIP similarity
                     vectorType = VectorType.IMAGE,
-                    modelType = com.jnd.aikit.database.ModelType.CLIP_IMAGE // Only search CLIP image embeddings for text queries
+                    modelType = ModelType.CLIP_IMAGE // Only search CLIP image embeddings for text queries
                 )
             )
 
@@ -264,7 +276,7 @@ class EmbeddingViewModel(application: Application) : AndroidViewModel(applicatio
                 clipImageEncoder.getEmbedding(bitmap)
             }
 
-            val modelType = if (useViT) com.jnd.aikit.database.ModelType.VIT else com.jnd.aikit.database.ModelType.CLIP_IMAGE
+            val modelType = if (useViT) ModelType.VIT else ModelType.CLIP_IMAGE
             Log.d("Embedding", "${modelType.name} Embedding generated: ${queryEmbedding.size} dims, first 5 values: ${queryEmbedding.take(5).joinToString()}")
 
             // Search for visually similar images
